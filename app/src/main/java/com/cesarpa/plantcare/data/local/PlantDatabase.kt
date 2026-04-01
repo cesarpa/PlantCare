@@ -8,7 +8,7 @@ import androidx.room.TypeConverters
 import com.cesarpa.plantcare.data.dao.PlantDao
 import com.cesarpa.plantcare.data.model.Plant
 
-@Database(entities = [Plant::class], version = 1, exportSchema = false)
+@Database(entities = [Plant::class], version = 2, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class PlantDatabase : RoomDatabase() {
     abstract fun plantDao(): PlantDao
@@ -23,7 +23,9 @@ abstract class PlantDatabase : RoomDatabase() {
                     context.applicationContext,
                     PlantDatabase::class.java,
                     "plant_database"
-                ).build()
+                )
+                    .fallbackToDestructiveMigration()
+                    .build()
                 INSTANCE = instance
                 instance
             }

@@ -17,10 +17,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewScreenSizes
 import com.cesarpa.plantcare.ui.theme.PlantCareTheme
+
+import com.cesarpa.plantcare.ui.screens.CreatePlantDialog
+import androidx.compose.runtime.remember
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -28,19 +30,31 @@ import androidx.compose.ui.unit.dp
 
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.runtime.collectAsState
-import com.cesarpa.plantcare.data.model.EnergySource
-import com.cesarpa.plantcare.data.model.Plant
-import com.cesarpa.plantcare.data.model.PotType
 import com.cesarpa.plantcare.ui.viewmodel.PlantViewModel
 import com.cesarpa.plantcare.ui.viewmodel.PlantViewModelFactory
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.Alignment
 
+import android.Manifest
+import android.os.Build
+import androidx.activity.result.contract.ActivityResultContracts
+
 class MainActivity : ComponentActivity() {
+    private val requestPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        // Handle permission result if needed
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+
         setContent {
             PlantCareTheme {
                 val viewModel: PlantViewModel = viewModel(
@@ -76,7 +90,7 @@ fun PlantCareApp(viewModel: PlantViewModel = viewModel()) {
     ) {
         Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
             Column(modifier = Modifier.padding(innerPadding)) {
-                Greeting(name = "PlantCare User")
+                Greeting(name = "Anyela")
                 PlantList(viewModel)
             }
         }
@@ -94,15 +108,43 @@ enum class AppDestinations(
 
 @Composable
 fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier.padding(16.dp)
-    )
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        color = MaterialTheme.colorScheme.primaryContainer,
+        shape = MaterialTheme.shapes.large
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Text(
+                text = "¡Hola, $name! 🌿",
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+            )
+            Text(
+                text = "Tus plantas te están esperando.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+            )
+        }
+    }
 }
 
 @Composable
 fun PlantList(viewModel: PlantViewModel) {
     val plants by viewModel.allPlants.collectAsState()
+    var showCreateDialog by remember { mutableStateOf(false) }
+
+    if (showCreateDialog) {
+        CreatePlantDialog(
+            onDismiss = { showCreateDialog = false },
+            onConfirm = { newPlant ->
+                viewModel.insert(newPlant)
+                showCreateDialog = false
+            }
+        )
+    }
 
     Column(modifier = Modifier.padding(16.dp)) {
         Row(
@@ -111,18 +153,7 @@ fun PlantList(viewModel: PlantViewModel) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(text = "My Plants 🌿", style = MaterialTheme.typography.headlineMedium)
-            Button(onClick = {
-                viewModel.insert(
-                    Plant(
-                        name = "Cactus de Cesar ${plants.size + 1}",
-                        soilType = "Cactus mix",
-                        potType = PotType.CLAY,
-                        energySource = EnergySource.DIRECT_SUN,
-                        waterInterval = 7,
-                        lastWatered = System.currentTimeMillis()
-                    )
-                )
-            }) {
+            Button(onClick = { showCreateDialog = true }) {
                 Text("+")
             }
         }
@@ -149,7 +180,35 @@ fun PlantList(viewModel: PlantViewModel) {
                             }
                         }
                         Text(text = "Sustrato: ${plant.soilType}", style = MaterialTheme.typography.bodySmall)
-                        Text(text = "Riego cada ${plant.waterInterval} días", style = MaterialTheme.typography.bodySmall)
+                        
+                        // Format interval from minutes
+                        val days = plant.waterInterval / 1440
+                        val hours = (plant.waterInterval % 1440) / 60
+                        val minutes = plant.waterInterval % 60
+                        val intervalText = buildString {
+                            append("Riego cada: ")
+                            if (days > 0) append("${days}d ")
+                            if (hours > 0) append("${hours}h ")
+                            if (minutes > 0 || (days == 0 && hours == 0)) append("${minutes}m")
+                        }
+                        Text(text = intervalText, style = MaterialTheme.typography.bodySmall)
+                        
+                        Text(text = "Maceta: ${plant.potType.name}", style = MaterialTheme.typography.bodySmall)
+                        Text(text = "Luz: ${plant.energySource.name}", style = MaterialTheme.typography.bodySmall)
+
+                        val currentTime = System.currentTimeMillis()
+                        // Condition from user: currentDate - waterInterval > lastWatered we are ok (alreadyWatered)
+                        // If currentDate - lastWatered > waterInterval, it means the time has passed since last watering.
+                        // I will assume this means "it's time to water" or "already watered" based on user's literal logic.
+                        // However, standard logic would be (currentTime - plant.lastWatered) < (plant.waterInterval * 60000L)
+                        val alreadyWateredValue = (currentTime - plant.lastWatered) < (plant.waterInterval * 60000L)
+                        
+                        Text(
+                            text = if (alreadyWateredValue) "Estado: Ya regada ✅" else "Estado: Necesita agua 🚿",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (alreadyWateredValue) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                        )
                     }
                 }
             }
