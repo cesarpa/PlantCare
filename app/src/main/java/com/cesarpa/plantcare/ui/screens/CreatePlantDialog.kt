@@ -1,16 +1,34 @@
 package com.cesarpa.plantcare.ui.screens
 
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
+import coil.compose.AsyncImage
 import com.cesarpa.plantcare.data.model.EnergySource
 import com.cesarpa.plantcare.data.model.Plant
 import com.cesarpa.plantcare.data.model.PotType
 import com.cesarpa.plantcare.data.model.SoilType
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -18,7 +36,10 @@ fun CreatePlantDialog(
     onDismiss: () -> Unit,
     onConfirm: (Plant) -> Unit
 ) {
+    val context = LocalContext.current
     var name by remember { mutableStateOf("") }
+    var imageUri by remember { mutableStateOf("") }
+    var capturedImageUri by remember { mutableStateOf<Uri?>(null) }
     var selectedSoilType by remember { mutableStateOf(SoilType.LOAMY) }
     
     // Interval Inputs
@@ -38,6 +59,31 @@ fun CreatePlantDialog(
     var potTypeExpanded by remember { mutableStateOf(false) }
     var energySourceExpanded by remember { mutableStateOf(false) }
 
+    // Camera Logic
+    val tempUri = remember { mutableStateOf<Uri?>(null) }
+    
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture(),
+        onResult = { success ->
+            if (success) {
+                capturedImageUri = tempUri.value
+                imageUri = capturedImageUri.toString()
+            }
+        }
+    )
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            val uri = createTempImageUri(context)
+            tempUri.value = uri
+            cameraLauncher.launch(uri)
+        } else {
+            Toast.makeText(context, "Permiso de cámara denegado", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Nueva Planta 🌿") },
@@ -52,6 +98,53 @@ fun CreatePlantDialog(
                     value = name,
                     onValueChange = { name = it },
                     label = { Text("Nombre") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // Image Selection Section
+                Text("Imagen de la Planta:", style = MaterialTheme.typography.labelLarge)
+                
+                if (capturedImageUri != null) {
+                    AsyncImage(
+                        model = capturedImageUri,
+                        contentDescription = "Captured Image",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(150.dp)
+                            .clip(RoundedCornerShape(8.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            val permissionCheckResult = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
+                            if (permissionCheckResult == PackageManager.PERMISSION_GRANTED) {
+                                val uri = createTempImageUri(context)
+                                tempUri.value = uri
+                                cameraLauncher.launch(uri)
+                            } else {
+                                permissionLauncher.launch(Manifest.permission.CAMERA)
+                            }
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Tomar Foto 📸")
+                    }
+                }
+
+                OutlinedTextField(
+                    value = imageUri,
+                    onValueChange = { 
+                        imageUri = it
+                        capturedImageUri = if (it.isBlank()) null else Uri.parse(it)
+                    },
+                    label = { Text("O ingresa URL") },
+                    placeholder = { Text("https://example.com/plant.jpg") },
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -162,7 +255,8 @@ fun CreatePlantDialog(
                                 energySource = selectedEnergySource,
                                 waterInterval = if (totalIntervalMins > 0) totalIntervalMins else 1,
                                 lastWatered = lastWateredTime,
-                                alreadyWatered = alreadyWateredStatus
+                                alreadyWatered = alreadyWateredStatus,
+                                imageUri = imageUri.ifBlank { null }
                             )
                         )
                     }
@@ -172,5 +266,17 @@ fun CreatePlantDialog(
             }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
+    )
+}
+
+fun createTempImageUri(context: Context): Uri {
+    val timeStamp: String = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+    val storageDir: File? = context.getExternalFilesDir("Pictures")
+    val file = File.createTempFile("PLANT_${timeStamp}_", ".jpg", storageDir)
+    
+    return FileProvider.getUriForFile(
+        context,
+        "${context.packageName}.fileprovider",
+        file
     )
 }

@@ -59,7 +59,8 @@ To ensure irrigation compliance even when the **app is closed** or after a **dev
 - [x] Implement `PlantRepository` and `PlantViewModel`.
 - [x] UI Design: Dashboard (with Clock), Creation Form, and Plant List.
 - [x] WorkManager integration for watering alarms.
-- [ ] Camera Module for attaching real photos to plant profiles.
+- [x] Image support (Coil) for plant profiles.
+- [x] Camera Module for capturing real photos.
 
 ---
 

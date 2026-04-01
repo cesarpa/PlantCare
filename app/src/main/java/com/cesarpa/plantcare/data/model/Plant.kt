@@ -25,5 +25,6 @@ data class Plant(
     val energySource: EnergySource,
     val waterInterval: Int, // In minutes (changed for testing granularity)
     val lastWatered: Long,   // Epoch timestamp
-    val alreadyWatered: Boolean = true // Flag to indicate if the plant was watered recently
+    val alreadyWatered: Boolean = true, // Flag to indicate if the plant was watered recently
+    val imageUri: String? = null // URI or URL for the plant image
     )
