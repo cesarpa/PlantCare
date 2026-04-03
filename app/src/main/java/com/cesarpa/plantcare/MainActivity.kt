@@ -22,14 +22,17 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.tooling.preview.PreviewScreenSizes
 import androidx.compose.ui.unit.dp
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.cesarpa.plantcare.ui.screens.CreatePlantDialog
+import com.cesarpa.plantcare.ui.screens.ProfileScreen
 import com.cesarpa.plantcare.ui.theme.PlantCareTheme
 import com.cesarpa.plantcare.ui.viewmodel.PlantViewModel
 import com.cesarpa.plantcare.ui.viewmodel.PlantViewModelFactory
+import com.cesarpa.plantcare.ui.viewmodel.ProfileViewModel
+import com.cesarpa.plantcare.ui.viewmodel.ProfileViewModelFactory
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flow
 import java.text.SimpleDateFormat
@@ -44,6 +47,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
@@ -52,19 +56,23 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
+            val app = application as PlantCareApplication
+            val plantViewModel: PlantViewModel = viewModel(
+                factory = PlantViewModelFactory(app.repository)
+            )
+            val profileViewModel: ProfileViewModel = viewModel(
+                factory = ProfileViewModelFactory(app.userPreferencesRepository)
+            )
+
             PlantCareTheme {
-                val viewModel: PlantViewModel = viewModel(
-                    factory = PlantViewModelFactory((application as PlantCareApplication).repository)
-                )
-                PlantCareApp(viewModel)
+                PlantCareApp(plantViewModel, profileViewModel)
             }
         }
     }
 }
 
-@PreviewScreenSizes
 @Composable
-fun PlantCareApp(viewModel: PlantViewModel = viewModel()) {
+fun PlantCareApp(plantViewModel: PlantViewModel, profileViewModel: ProfileViewModel) {
     var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.HOME) }
 
     NavigationSuiteScaffold(
@@ -85,9 +93,23 @@ fun PlantCareApp(viewModel: PlantViewModel = viewModel()) {
         }
     ) {
         Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-            Column(modifier = Modifier.padding(innerPadding)) {
-                Greeting(name = "Anyela")
-                PlantList(viewModel)
+            Box(modifier = Modifier.padding(innerPadding)) {
+                when (currentDestination) {
+                    AppDestinations.HOME -> {
+                        val userName by profileViewModel.userName.collectAsState()
+                        Column {
+                            Greeting(name = userName)
+                            PlantList(plantViewModel)
+                        }
+                    }
+                    AppDestinations.FAVORITES -> {
+                        // For now reuse PlantList or implement dedicated favorites
+                        PlantList(plantViewModel)
+                    }
+                    AppDestinations.PROFILE -> {
+                        ProfileScreen(profileViewModel)
+                    }
+                }
             }
         }
     }
@@ -285,13 +307,5 @@ fun PlantList(viewModel: PlantViewModel) {
                 }
             }
         }
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    PlantCareTheme {
-        Greeting("Android")
     }
 }
